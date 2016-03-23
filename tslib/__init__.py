@@ -15,7 +15,7 @@ import sys
 __author__ = 'Maxime Petazzoni <max@signalfuse.com>'
 __copyright__ = 'Copyright (C) 2015 SignalFx, Inc. All rights reserved.'
 __title__ = 'ts'
-__version__ = '1.1'
+__version__ = '1.2'
 
 _UNITS = {
         's': delta(seconds=1),
@@ -109,9 +109,14 @@ def parse_to_timestamp(s):
     return ts
 
 
-def render_delta(date):
-    """Render the given date as a human-readable delta against Epoch."""
-    d = __timedelta_millis(date - utc())
+def render_delta_from_now(date):
+    """Render the given date as a human-readable string representing that
+    date's delta from "now"."""
+    return render_delta(__timedelta_millis(date - utc()))
+
+
+def render_delta(d):
+    """Render the given delta (in milliseconds) as a human-readable delta."""
     s = '' if d >= 0 else '-'
     d = abs(d)
 
@@ -141,7 +146,7 @@ def render_date(date, tz=pytz.utc, fmt=_FULL_OUTPUT_FORMAT):
             utc_tz=date.strftime(_TZ_FORMAT),
             local=local.strftime(_DATE_FORMAT),
             local_tz=local.strftime(_TZ_FORMAT),
-            delta=render_delta(date))
+            delta=render_delta_from_now(date))
 
 
 def main():
