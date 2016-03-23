@@ -15,7 +15,7 @@ import sys
 __author__ = 'Maxime Petazzoni <max@signalfuse.com>'
 __copyright__ = 'Copyright (C) 2015 SignalFx, Inc. All rights reserved.'
 __title__ = 'ts'
-__version__ = '1.2'
+__version__ = '1.3'
 
 _UNITS = {
         's': delta(seconds=1),
@@ -44,10 +44,20 @@ def __timedelta_millis(td):
     return int(round(td.total_seconds(), 3) * 1000)
 
 
+def __date_to_millisecond_ts(date):
+    millis = int(date.microsecond / 1000)
+    return calendar.timegm(date.utctimetuple()) * 1000 + millis
+
+
 def utc():
     """Return a non-naive, timezone-aware datetime object representing the
     current UTC time."""
     return date_from_utc(dt.utcnow())
+
+
+def utc_millisecond_timestamp():
+    """Returns the current millisecond precision timestamp."""
+    return __date_to_millisecond_ts(utc())
 
 
 def date_from_utc_ts(ts):
@@ -103,10 +113,7 @@ def parse_input(s):
 def parse_to_timestamp(s):
     """Parse the given input and convert to an absolute UTC timestamp since
     Epoch."""
-    date = parse_input(s)
-    millis = int(date.microsecond / 1000)
-    ts = calendar.timegm(date.utctimetuple()) * 1000 + millis
-    return ts
+    return __date_to_millisecond_ts(parse_input(s))
 
 
 def render_delta_from_now(date):
@@ -137,12 +144,11 @@ def render_date(date, tz=pytz.utc, fmt=_FULL_OUTPUT_FORMAT):
     """Format the given date for output. The local time render of the given
     date is done using the given timezone."""
     local = date.astimezone(tz)
-    millis = int(date.microsecond / 1000)
-    ts = calendar.timegm(date.utctimetuple()) * 1000 + millis
+    ts = __date_to_millisecond_ts(date)
     return fmt.format(
             ts=ts,
             utc=date.strftime(_DATE_FORMAT),
-            millis=millis,
+            millis=ts % 1000,
             utc_tz=date.strftime(_TZ_FORMAT),
             local=local.strftime(_DATE_FORMAT),
             local_tz=local.strftime(_TZ_FORMAT),
