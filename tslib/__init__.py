@@ -9,13 +9,14 @@ from datetime import timedelta as delta
 import os
 import pytz
 import re
+import six
 import sys
 
 
 __author__ = 'Maxime Petazzoni <max@signalfuse.com>'
 __copyright__ = 'Copyright (C) 2015 SignalFx, Inc. All rights reserved.'
 __title__ = 'ts'
-__version__ = '1.3'
+__version__ = '1.4'
 
 _UNITS = {
         's': delta(seconds=1),
@@ -81,6 +82,11 @@ def parse_input(s):
     input can be specified as a human-readable delta string with unit-separated
     segments, like '24d6h4m500' (24 days, 6 hours, 4 minutes and 500ms), as
     long as the segments are in descending unit span order."""
+    if isinstance(s, six.integer_types):
+        s = str(s)
+    elif not isinstance(s, six.string_types):
+        raise ValueError(s)
+
     original = s
 
     if s[-1:] == 'L':
