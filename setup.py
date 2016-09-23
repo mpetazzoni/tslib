@@ -4,14 +4,15 @@
 
 from setuptools import setup, find_packages
 
-import tslib
+with open('tslib/version.py') as f:
+    exec(f.read())
 
 with open('README.rst') as readme:
     long_description = readme.read()
 
 setup(
-    name='tslib',
-    version=tslib.__version__,
+    name=name,
+    version=version,
     author='Maxime Petazzoni',
     author_email='maxime.petazzoni@bulix.org',
     description=('A library for dealing with human-readable '

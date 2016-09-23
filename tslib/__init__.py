@@ -12,11 +12,13 @@ import re
 import six
 import sys
 
+from . import version
+
 
 __author__ = 'Maxime Petazzoni <max@signalfuse.com>'
 __copyright__ = 'Copyright (C) 2015 SignalFx, Inc. All rights reserved.'
-__title__ = 'ts'
-__version__ = '1.4'
+__title__ = version.name
+__version__ = version.version
 
 _UNITS = {
         's': delta(seconds=1),
@@ -200,7 +202,11 @@ def main():
         map(process, args)
         out = True
     if not os.isatty(file.fileno(sys.stdin)):
-        map(process, sys.stdin.readlines())
+        while True:
+            line = sys.stdin.readline()
+            if not line:
+                break
+            process(line)
         out = True
     if not out:
         print(render_date(utc(), tz, options.output_format))
