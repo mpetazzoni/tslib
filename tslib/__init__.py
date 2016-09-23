@@ -192,7 +192,7 @@ def main():
                       end='')
             else:
                 print(render(arg, options.output_format))
-        except Exception, e:
+        except Exception as e:
             print('Could not parse {arg}: {error}'
                   .format(arg=arg, error=e.args[0]))
             raise
