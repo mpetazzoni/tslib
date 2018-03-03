@@ -3,25 +3,31 @@ Timestamp library and utility
 
 ``tslib`` is a timestamp processing toolkit and library, written in
 Python. It is very helpful when dealing with the millisecond-precision
-timestamps that we encounter all the time in computer systems.
+timestamps that we encounter all the time in computer systems, and to
+work with human-readable time deltas away from "now".
 
 Installation
 ------------
 
-``tslib`` depends on ``pytz``, which you can install easily using the
-provided ``requirements.txt`` file:
+You can install ``tslib`` directly from PyPI with the following command:
 
 ::
 
-    $ pip install -r requirements.txt
+    $ pip install tslib
 
-You're now ready to use ``ts``. For easier access, put its directory
-into your ``$PATH``:
+If you're installing from a clone of this repository, use:
 
 ::
 
-    $ export PATH=`pwd`:$PATH
-    $ echo "export PATH=`pwd`:\$PATH" >> ~/.bashrc     # or ~/.zshrc
+    $ git clone https://github.com/mpetazzoni/tslib
+    $ cd tslib/
+    $ pip install -e .
+
+``tslib`` depends on ``pytz`` and ``six``, which will be installed
+automatically.
+
+You're now ready to use ``ts``, which should be directly available in
+your ``$PATH``.
 
 Usage
 -----
