@@ -201,7 +201,7 @@ def main():
     if len(args):
         map(process, args)
         out = True
-    if not os.isatty(file.fileno(sys.stdin)):
+    if not os.isatty(sys.stdin.fileno()):
         while True:
             line = sys.stdin.readline()
             if not line:
