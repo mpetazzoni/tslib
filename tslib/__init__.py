@@ -199,7 +199,8 @@ def main():
 
     out = False
     if len(args):
-        map(process, args)
+        for arg in args:
+            process(arg)
         out = True
     if not os.isatty(sys.stdin.fileno()):
         while True:
