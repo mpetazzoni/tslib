@@ -7,6 +7,9 @@ from setuptools import setup, find_packages
 with open('tslib/version.py') as f:
     exec(f.read())
 
+with open('requirements.txt') as f:
+    requirements = [line.strip() for line in f.readlines()]
+
 with open('README.rst') as readme:
     long_description = readme.read()
 
@@ -21,6 +24,7 @@ setup(
     long_description=long_description,
     zip_safe=True,
     packages=find_packages(),
+    install_requires=requirements,
     classifiers=[
         'Operating System :: OS Independent',
         'Programming Language :: Python',
