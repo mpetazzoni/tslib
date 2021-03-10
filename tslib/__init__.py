@@ -1,4 +1,5 @@
-# Copyright (C) 2015 SignalFx, Inc. All rights reserved.
+# Copyright (C) 2015-2019 SignalFx, Inc. All rights reserved.
+# Copyright (C) 2020-2021 Splunk, Inc. All rights reserved.
 
 from __future__ import print_function
 
@@ -21,15 +22,23 @@ __title__ = version.name
 __version__ = version.version
 
 _UNITS = {
-        's': delta(seconds=1),
-        'm': delta(minutes=1),
-        'h': delta(hours=1),
-        'd': delta(days=1),
-        'w': delta(days=7),
+    's': delta(seconds=1),
+    'm': delta(minutes=1),
+    'h': delta(hours=1),
+    'd': delta(days=1),
+    'w': delta(days=7),
 }
 
 _SORTED_UNITS = sorted(
     _UNITS.items(), key=lambda x: x[1], reverse=True)
+
+_ALIGNMENTS = {
+    'minute': lambda d: d.replace(second=0, microsecond=0) + delta(minutes=1),
+    'hour': lambda d: d.replace(minute=0, second=0, microsecond=0)
+                + delta(hours=1),
+    'day': lambda d: d.replace(hour=0, minute=0, second=0, microsecond=0)
+                + delta(days=1),
+}
 
 _FULL_OUTPUT_FORMAT = '{ts:13d}\t{utc}.{millis:03d} {utc_tz}\t' \
         + '{local}.{millis:03d} {local_tz}\t{delta}'
@@ -176,12 +185,19 @@ def main():
                         action='store_true', default=False,
                         help='Apply timestamp replacements inline '
                              'of the incoming text')
+    parser.add_argument('-a', '--align', dest='align',
+                        choices=_ALIGNMENTS.keys(),
+                        help='Align the timestamp')
     (options, args) = parser.parse_known_args()
 
     tz = pytz.timezone(options.timezone)
 
-    def render(arg, fmt):
-        return render_date(parse_input(arg.strip()), tz, fmt)
+    def render(date, fmt):
+        if isinstance(date, six.string_types):
+            date = parse_input(date.strip())
+        if options.align:
+            date = _ALIGNMENTS[options.align](date)
+        return render_date(date, tz, fmt)
 
     def process(arg):
         try:
@@ -210,4 +226,4 @@ def main():
             process(line)
         out = True
     if not out:
-        print(render_date(utc(), tz, options.output_format))
+        print(render(utc(), options.output_format))
