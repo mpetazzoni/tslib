@@ -1,22 +1,20 @@
 # Copyright (C) 2015-2019 SignalFx, Inc. All rights reserved.
 # Copyright (C) 2020-2021 Splunk, Inc. All rights reserved.
 
-from __future__ import print_function
-
 import argparse
 import calendar
 from datetime import datetime as dt
 from datetime import timedelta as delta
+from datetime import timezone
 import os
-import pytz
 import re
-import six
 import sys
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from . import version
 
 
-__author__ = 'Maxime Petazzoni <max@signalfuse.com>'
+__author__ = 'Maxime Petazzoni <maxime.petazzoni@bulix.org>'
 __copyright__ = 'Copyright (C) 2015 SignalFx, Inc. All rights reserved.'
 __title__ = version.name
 __version__ = version.version
@@ -48,7 +46,7 @@ _LOCAL_HUMAN_FORMAT = '{local}.{millis:03d} {local_tz} ({delta})'
 _DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 _TZ_FORMAT = '%Z%z'
 
-_TIMESTAMP_REGEXP = re.compile('(?<!\d)(\d{13}L?)(?!\d)')
+_TIMESTAMP_REGEXP = re.compile(r'(?<!\d)(\d{13}L?)(?!\d)')
 
 
 def __timedelta_millis(td):
@@ -64,7 +62,7 @@ def __date_to_millisecond_ts(date):
 def utc():
     """Return a non-naive, timezone-aware datetime object representing the
     current UTC time."""
-    return date_from_utc(dt.utcnow())
+    return dt.now(timezone.utc)
 
 
 def utc_millisecond_timestamp():
@@ -75,13 +73,15 @@ def utc_millisecond_timestamp():
 def date_from_utc_ts(ts):
     """Return a non-naive, timezone-aware datetime object for the UTC timezone
     representing the given millisecond-precision UTC timestamp."""
-    return date_from_utc(dt.utcfromtimestamp(ts / 1000.0))
+    return dt.fromtimestamp(ts / 1000.0, timezone.utc)
 
 
 def date_from_utc(date):
     """Return a non-naive, timezone-aware datetime object for the UTC timezone
     of the given naive datetime object."""
-    return pytz.utc.localize(date)
+    if date.tzinfo is not None:
+        raise ValueError('Expected a naive datetime')
+    return date.replace(tzinfo=timezone.utc)
 
 
 def parse_input(s):
@@ -93,15 +93,18 @@ def parse_input(s):
     input can be specified as a human-readable delta string with unit-separated
     segments, like '24d6h4m500' (24 days, 6 hours, 4 minutes and 500ms), as
     long as the segments are in descending unit span order."""
-    if isinstance(s, six.integer_types):
+    if isinstance(s, int):
         s = str(s)
-    elif not isinstance(s, six.string_types):
+    elif not isinstance(s, str):
         raise ValueError(s)
 
     original = s
 
     if s[-1:] == 'L':
         s = s[:-1]
+
+    if not s:
+        raise ValueError(original)
 
     sign = {'-': -1, '=': 0, '+': 1}.get(s[0], None)
     if sign is not None:
@@ -157,9 +160,9 @@ def render_delta(d):
     return s
 
 
-def render_date(date, tz=pytz.utc, fmt=_FULL_OUTPUT_FORMAT):
+def render_date(date, tz=timezone.utc, fmt=_FULL_OUTPUT_FORMAT):
     """Format the given date for output. The local time render of the given
-    date is done using the given timezone."""
+    date is done using the given timezone. Pass None for the OS-local timezone."""
     local = date.astimezone(tz)
     ts = __date_to_millisecond_ts(date)
     return fmt.format(
@@ -174,8 +177,8 @@ def render_date(date, tz=pytz.utc, fmt=_FULL_OUTPUT_FORMAT):
 
 def main():
     parser = argparse.ArgumentParser(description='Human readable timestamps')
-    parser.add_argument('-t', '--timezone', metavar='TZ', default='US/Pacific',
-                        help='Use TZ as the local timezone')
+    parser.add_argument('-t', '--timezone', metavar='TZ',
+                        help='Use IANA timezone TZ (default: OS local timezone)')
     parser.add_argument('-n', '--timestamp-only', dest='output_format',
                         action='store_const', const=_TIMESTAMP_ONLY_FORMAT,
                         default=_FULL_OUTPUT_FORMAT,
@@ -190,10 +193,15 @@ def main():
                         help='Align the timestamp')
     (options, args) = parser.parse_known_args()
 
-    tz = pytz.timezone(options.timezone)
+    tz = None
+    if options.timezone is not None:
+        try:
+            tz = ZoneInfo(options.timezone)
+        except (ZoneInfoNotFoundError, ValueError):
+            parser.error('Unknown timezone: {}'.format(options.timezone))
 
     def render(date, fmt):
-        if isinstance(date, six.string_types):
+        if isinstance(date, str):
             date = parse_input(date.strip())
         if options.align:
             date = _ALIGNMENTS[options.align](date)

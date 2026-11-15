@@ -23,8 +23,10 @@ If you're installing from a clone of this repository, use:
     $ cd tslib/
     $ pip install -e .
 
-``tslib`` depends on ``pytz`` and ``six``, which will be installed
-automatically.
+``tslib`` requires Python 3.11 or newer. Named timezones use Python's
+``zoneinfo`` module and the system IANA timezone database, with the
+automatically installed ``tzdata`` package as a fallback. Neither ``pytz``
+nor ``six`` is required.
 
 You're now ready to use ``ts``, which should be directly available in
 your ``$PATH``.
@@ -35,16 +37,18 @@ Usage
 ::
 
     $ ts -h
-    usage: ts [-h] [-t TZ] [-n] [-i]
+    usage: ts [-h] [-t TZ] [-n] [-i] [-a {minute,hour,day}]
 
     Human readable timestamps
 
-    optional arguments:
+    options:
       -h, --help            show this help message and exit
-      -t TZ, --timezone TZ  Use TZ as the local timezone
+      -t, --timezone TZ     Use IANA timezone TZ (default: OS local timezone)
       -n, --timestamp-only  Only output the resulting millisecond timestamp(s)
       -i, --inline          Apply timestamp replacements inline of the incoming
                             text
+      -a, --align {minute,hour,day}
+                            Align the timestamp
 
 ``ts`` transforms milliseconds timestamps and human-readable deltas into
 fully qualified date and time printouts, containing:
@@ -63,7 +67,7 @@ simply output the current time:
 
 ::
 
-    $ ts
+    $ ts -t America/Los_Angeles
     1423599084206 2015-02-10 20:11:24.206 UTC+0000  2015-02-10 12:11:24.206 PST-0800  0
 
 Inline mode
@@ -84,7 +88,7 @@ section of them is matched and replaced.
 
     $ echo B_b-3PAAYAA B_cJXlvAYAA B_cJXl6AcAA \
         | xargs sfc mb g -p TSVH -f sf_checkpointTimestampMs -f sf_updatedOnMs \
-        | ts -i \
+        | ts -i -t America/Los_Angeles \
         | column -t -s "    "
     sf_id        sf_checkpointTimestampMs                              sf_updatedOnMs
     B_b-3PAAYAA  2015-03-06 13:38:58.851 PST-0800 (-2w5h18m6s210)      2015-03-06 13:38:58.852 PST-0800 (-2w5h18m6s209)
@@ -98,7 +102,7 @@ Piping:
 
 ::
 
-    $ cat << EOF | ts
+    $ cat << EOF | ts -t America/Los_Angeles
     pipe heredoc> 1404424797009L
     pipe heredoc> 1415917836779L
     pipe heredoc> EOF
@@ -118,7 +122,7 @@ Sorting on a column (here, by descending timestamps in first column):
 
 ::
 
-    $ cat /tmp/ts.txt | ts | sort -k1 -t $'\t' -r
+    $ cat /tmp/ts.txt | ts -t America/Los_Angeles | sort -k1 -t $'\t' -r
     1415917836779 2014-11-13 22:30:36.779 UTC+0000  2014-11-13 14:30:36.779 PST-0800  -12w5d46m6s924
     1404424797009 2014-07-03 21:59:57.009 UTC+0000  2014-07-03 14:59:57.009 PDT-0700  -31w5d1h16m46s694
 
@@ -142,21 +146,27 @@ otherwise the number is assumed to be an absolute timestamp:
 
 ::
 
-    $ ts -1
+    $ ts -t America/Los_Angeles -1
     1423599850752 2015-02-10 20:24:10.752 UTC+0000  2015-02-10 12:24:10.752 PST-0800  -1
-    $ ts 0 1
+    $ ts -t America/Los_Angeles 0 1
                 0 1970-01-01 00:00:00.000 UTC+0000  1969-12-31 16:00:00.000 PST-0800  -2353w5d20h24m14s145
                 1 1970-01-01 00:00:00.001 UTC+0000  1969-12-31 16:00:00.001 PST-0800  -2353w5d20h24m14s144
-    $ ts +1
+    $ ts -t America/Los_Angeles +1
     1423599855941 2015-02-10 20:24:15.941 UTC+0000  2015-02-10 12:24:15.941 PST-0800  1
 
 Using a different local timezone
 --------------------------------
 
-The third column shows the timestamp's representation in local time. It
-defaults to the ``US/Pacific`` timezone but this can be overridden with
-the ``-t`` command-line argument, passing in a timezone name that
-``pytz`` understands:
+The third column shows the timestamp's representation in local time. By
+default it uses the operating system's configured local timezone, including
+the daylight-saving offset appropriate to the timestamp being converted.
+It does not depend on the legacy ``US/Pacific`` timezone alias. On POSIX
+systems, the ``TZ`` environment variable can override the local timezone.
+
+Use ``-t`` to select an explicit IANA timezone name, such as ``UTC``,
+``America/Los_Angeles``, or ``Europe/Paris``. Invalid names produce a
+command-line usage error. The Pacific-time examples above explicitly select
+``America/Los_Angeles`` so their output does not depend on the host timezone:
 
 ::
 
@@ -175,5 +185,52 @@ corresponding millisecond duration.
 
     $ ts -n '=1h'
           3600000
-    $ ts '=1d'
+    $ ts -t America/Los_Angeles '=1d'
          86400000 1970-01-02 00:00:00.000 UTC+0000  1970-01-01 16:00:00.000 PST-0800  -2365w6d21h56m20s98
+
+Alignment
+---------
+
+``-a minute``, ``-a hour``, and ``-a day`` round forward to the next UTC
+boundary, even if the timestamp is already aligned. The chosen display
+timezone does not change the alignment:
+
+::
+
+    $ ts -n -a hour 1
+          3600000
+
+Library compatibility
+---------------------
+
+UTC datetime helpers now return standard-library ``datetime`` objects with
+``datetime.timezone.utc`` rather than ``pytz.utc``. ``date_from_utc`` still
+requires a naive datetime and rejects an already timezone-aware value.
+Replace ``pytz``-specific operations such as ``localize`` and ``normalize``
+with standard-library datetime operations when upgrading.
+
+``render_date(date)`` keeps its UTC display default for library callers.
+Pass ``None`` to use the OS-local timezone, or a ``zoneinfo.ZoneInfo`` object
+to select a named timezone:
+
+::
+
+    from zoneinfo import ZoneInfo
+    from tslib import date_from_utc_ts, render_date
+
+    print(render_date(date_from_utc_ts(1404424797009), ZoneInfo("Europe/Paris")))
+
+Development
+-----------
+
+Install the development dependencies in a virtual environment, then run:
+
+::
+
+    $ python -m pip install -e '.[dev]'
+    $ python -m pytest
+    $ python -m ruff check .
+    $ python -m build
+    $ python -m twine check dist/*
+
+CI runs these checks on Python 3.11 through 3.14 on Linux, macOS, and Windows.
