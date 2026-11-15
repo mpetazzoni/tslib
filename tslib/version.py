@@ -2,4 +2,4 @@
 # Copyright (C) 2020-2021 Splunk, Inc. All rights reserved.
 
 name = 'tslib'
-version = '1.8'
+version = '2.0'
