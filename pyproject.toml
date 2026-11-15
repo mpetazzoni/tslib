@@ -11,7 +11,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{name = "Maxime Petazzoni", email = "maxime.petazzoni@bulix.org"}]
-dependencies = ["pytz", "six"]
+dependencies = ["tzdata"]
 classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
