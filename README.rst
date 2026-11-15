@@ -234,3 +234,28 @@ Install the development dependencies in a virtual environment, then run:
     $ python -m twine check dist/*
 
 CI runs these checks on Python 3.11 through 3.14 on Linux, macOS, and Windows.
+
+Publishing
+----------
+
+Attach the validated wheel and source archive to a stable GitHub release
+tagged ``tslib-VERSION``. Publishing that release triggers ``publish.yml``,
+which verifies the distribution names, versions, and GitHub asset SHA-256
+digests before uploading the same files to PyPI via Trusted Publishing.
+Prereleases and drafts are not published.
+
+The PyPI trusted publisher must match repository ``mpetazzoni/tslib``,
+workflow ``publish.yml``, and GitHub environment ``pypi``. Only the isolated
+publishing job receives OIDC permission; no API token is required. Configure
+the GitHub ``pypi`` environment's protection rules as desired before running
+the workflow.
+
+For an existing release, dispatch the workflow from ``main`` with its tag:
+
+::
+
+    $ gh workflow run publish.yml --ref main -f tag=tslib-2.0
+
+Upload both distributions before publishing the GitHub release. Dispatching
+from another branch is ignored, and duplicate PyPI uploads fail rather than
+silently skipping existing files.

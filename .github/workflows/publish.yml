@@ -1,0 +1,103 @@
+name: Publish to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing GitHub release tag (for example, tslib-2.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pypi-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      (github.event_name == 'release' && !github.event.release.prerelease) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.11'
+      - name: Download published release distributions
+        run: |
+          [[ "$RELEASE_TAG" =~ ^tslib-[0-9]+\.[0-9]+(\.[0-9]+)?$ ]] || exit 1
+          gh release view "$RELEASE_TAG" --json tagName,isDraft,isPrerelease,assets > release.json
+          gh release download "$RELEASE_TAG" --dir dist --pattern '*.whl' --pattern '*.tar.gz'
+      - name: Verify release identity, hashes, and metadata
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          import tarfile
+          import zipfile
+          from email import message_from_bytes
+          from pathlib import Path
+
+          release = json.loads(Path('release.json').read_text())
+          tag = os.environ['RELEASE_TAG']
+          if release['tagName'] != tag or release['isDraft'] or release['isPrerelease']:
+              raise ValueError('Expected a published stable release with the requested tag')
+          version = tag.removeprefix('tslib-')
+          wheel = f'tslib-{version}-py3-none-any.whl'
+          sdist = f'tslib-{version}.tar.gz'
+          expected = {wheel, sdist}
+          if {p.name for p in Path('dist').iterdir()} != expected:
+              raise ValueError('Expected exactly one tslib wheel and one source archive')
+          assets = {asset['name']: asset for asset in release['assets']}
+          for name in expected:
+              digest = 'sha256:' + hashlib.sha256(Path('dist', name).read_bytes()).hexdigest()
+              if assets[name].get('digest') != digest:
+                  raise ValueError(f'Release checksum mismatch: {name}')
+          with zipfile.ZipFile(Path('dist', wheel)) as archive:
+              wheel_metadata = archive.read(f'tslib-{version}.dist-info/METADATA')
+          with tarfile.open(Path('dist', sdist)) as archive:
+              sdist_metadata = archive.extractfile(f'tslib-{version}/PKG-INFO').read()
+          for raw in (wheel_metadata, sdist_metadata):
+              metadata = message_from_bytes(raw)
+              if metadata['Name'] != 'tslib' or metadata['Version'] != version:
+                  raise ValueError('Distribution name/version does not match release tag')
+          print(f'Verified {tag}: wheel and source archive match release checksums')
+          PY
+      - name: Validate distribution metadata and README
+        run: |
+          python -m pip install twine
+          python -m twine check dist/*
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pypi-distributions
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: prepare
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/tslib/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pypi-distributions
+          path: dist
+      - name: Publish distributions with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          packages-dir: dist
+          print-hash: true
